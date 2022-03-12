@@ -105,11 +105,12 @@ section .text
 
 
 ;------------------------------------------------
-%if 0 			;ITOA_*_TEST
+;%if 0 			;ITOA_*_TEST
 
-	mov rdx, 111
+	mov rdx, 10
+	mov rbx, 10
 	mov rdi, Numstr
-	call _itoa_h
+	call _itoa
 
 	mov rax, 0x01	;write64(rdi, rsi, rdx) ... r10, r8, r9
 	mov rdi, 1	;stdout
@@ -118,10 +119,10 @@ section .text
 	syscall
 
 section .data
-Numstr:	db 64 dup('-'), '!'
+Numstr:	db 65 dup('.'), '!'
 Numstr_len equ $ - Numstr
 section .text
-%endif			;ITOA_*_TEST
+;%endif			;ITOA_*_TEST
 ;------------------------------------------------
 
 	mov rax, 0x3C	;exit64(rdi)
@@ -129,7 +130,7 @@ section .text
 	syscall
 
 ;================================================
-%endif	;ENDDEBUG
+%endif			;ENDDEBUG
 ;================================================
 
 section .data
@@ -298,6 +299,8 @@ _itoa_b:
 	shr rax, 1		;
 	jnz .sz			;
 
+	push rcx		;save strlen
+	
 .loop: 	dec rcx
 	mov rax, rdx
 
@@ -310,14 +313,17 @@ _itoa_b:
 	cmp rcx, 0
 	jnz .loop
 
+	pop rax			;rax=strlen
+	
 	ret
 
 ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 ;	Converts octal number to string
 ;
 ;entry: rdx	- number to convert
-;	[rdi] - dst string address
-;exit:  [rdi] - byte after converted number
+;	[rdi] 	- dst string address
+;exit:  rax	- dst strlen
+;	[rdi] 	- byte after converted number
 ;destr: rax rcx rdi
 ;////////////////////////////////////////////////
 _itoa_o:
@@ -327,6 +333,8 @@ _itoa_o:
 .sz:   	inc rcx			;evaluate string size
 	shr rax, 3		;
 	jnz .sz			;
+
+	push rcx		;save strlen
 
 .loop: 	dec rcx
 	mov rax, rdx
@@ -342,24 +350,29 @@ _itoa_o:
 	cmp rcx, 0
 	jnz .loop
 
+	pop rax			;rax=strlen
+
 	ret
 
 ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 ;	Converts hex number to string
 ;
 ;entry: rdx	- number to convert
-;	[rdi] - dst string address
-;exit:  [rdi] - byte after converted number
-;destr: rax rbx rcx rdi
+;	[rdi] 	- dst string address
+;exit:  rax	- dst strlen
+;	[rdi] 	- byte after converted number
+;destr: rax rcx rdi
 ;////////////////////////////////////////////////
 _itoa_h:
-
+	push rbx		;save rbx
+	
 	mov rax, rdx
 	mov rcx, 0
 .sz:   	inc rcx			;evaluate string size
 	shr rax, 4		;
 	jnz .sz			;
 
+	push rcx		;save strlen
 	lea rbx, XLAT_NUM	;digits translate table
 	
 .loop: 	dec rcx
@@ -376,5 +389,53 @@ _itoa_h:
 
 	cmp rcx, 0
 	jnz .loop
+
+	pop rax			;rax=strlen
+	pop rbx			;restore rbx
+	
+	ret
+
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;	Converts decimal number to byte string.
+;
+;entry:	rdx	- number to convert
+;	[rdi]	- dst string address
+;	rbx	- radix
+;	WARNING:  (64+1)=65 bytes in dest string required
+;exit:	rax	- dst strlen
+;	[rdi]	- byte after converted number
+;destr:	rax rcx rdx rsi rdi df=0
+;////////////////////////////////////////////////
+_itoa:
+
+	push rdi		;for strlen
+	mov rax, rdx
+	
+	lea rsi, [rdi + 65]	;mov rsi to string_end+1
+	test rax, rax		;zf=1 -> negative
+	jns .cont		
+	neg rax			;convert to positive	
+	mov byte [rdi], '-'
+	inc rdi			;not to overwrite '-'
+
+.cont:	xor rcx, rcx		;counts converted number length	
+
+.conv: 	xor rdx, rdx		;clean rdx for div
+	div rbx			;(rdx,rax)/rbx
+
+	mov dl, XLAT_NUM[rdx]	;translate mod->symbol
+	dec rsi			;move along dst string
+	inc rcx			;strlen++
+	mov [rsi], dl
+	
+	cmp rax, 0
+	jnz .conv
+	
+	cld			;df=0
+	rep movsb		;move converted number to beginning
+
+	pop rcx			;strlen
+	mov rax, rdi		;
+	sub rax, rcx		;
 
 	ret

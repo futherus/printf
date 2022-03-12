@@ -1,7 +1,7 @@
-SRC := main.asm
-OBJ := main.o
-LST := main.lst
-BIN := main
+SRC := printf.asm
+OBJ := printf.o
+LST := printf.lst
+BIN := printf
 FLAGS:= -g -f elf64
 
 all: asm link
