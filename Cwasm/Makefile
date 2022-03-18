@@ -1,5 +1,5 @@
 ASM 	:= printf.s
-SRC	:= test.cpp
+SRC	:= main.cpp
 OBJ 	:= $(patsubst %.s,%.o,$(ASM)) $(patsubst %.cpp,%.o,$(SRC))
 BIN 	:= out
 
